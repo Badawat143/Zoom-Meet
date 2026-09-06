@@ -8,7 +8,8 @@ import {
   Video, 
   Camera,
   Layers,
-  Sparkles
+  Sparkles,
+  Link2
 } from 'lucide-react';
 import { MeetingPlatform } from '../types';
 
@@ -20,6 +21,7 @@ interface GoogleMeetHeaderProps {
   currentPlatform: MeetingPlatform;
   onSwitchPlatform: (platform: MeetingPlatform) => void;
   onOpenMassJoinModal: () => void;
+  onOpenDirectJoinModal?: () => void;
   onOpenScenarios: () => void;
   onToggleFullscreen: () => void;
   isFullscreen: boolean;
@@ -33,6 +35,7 @@ export default function GoogleMeetHeader({
   currentPlatform,
   onSwitchPlatform,
   onOpenMassJoinModal,
+  onOpenDirectJoinModal,
   onOpenScenarios,
   onToggleFullscreen,
   isFullscreen,
@@ -120,6 +123,19 @@ export default function GoogleMeetHeader({
             <span>Google Meet</span>
           </button>
         </div>
+
+        {/* Direct Join Link Button */}
+        {onOpenDirectJoinModal && (
+          <button
+            id="meet-direct-join-btn"
+            onClick={onOpenDirectJoinModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#303134] hover:bg-[#3c4043] text-emerald-400 hover:text-emerald-300 rounded-full text-xs font-semibold transition-all border border-[#5f6368]/40 shadow-sm"
+            title="Join any other Google Meet or Zoom link"
+          >
+            <Link2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Join Any Link</span>
+          </button>
+        )}
 
         {/* Mass Join Quick Pill */}
         <button

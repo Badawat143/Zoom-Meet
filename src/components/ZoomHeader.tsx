@@ -16,7 +16,8 @@ import {
   Lock,
   Edit2,
   Users,
-  Zap
+  Zap,
+  Link2
 } from 'lucide-react';
 
 interface ZoomHeaderProps {
@@ -37,6 +38,7 @@ interface ZoomHeaderProps {
   onStopRecording: () => void;
   onOpenScenarios: () => void;
   onOpenMassJoinModal?: () => void;
+  onOpenDirectJoinModal?: () => void;
   onToggleFullscreen: () => void;
   isFullscreen: boolean;
 }
@@ -59,6 +61,7 @@ export default function ZoomHeader({
   onStopRecording,
   onOpenScenarios,
   onOpenMassJoinModal,
+  onOpenDirectJoinModal,
   onToggleFullscreen,
   isFullscreen,
 }: ZoomHeaderProps) {
@@ -248,6 +251,19 @@ export default function ZoomHeader({
               <span>Meet</span>
             </button>
           </div>
+        )}
+
+        {/* Direct Join Link / Custom Meeting ID Button */}
+        {onOpenDirectJoinModal && (
+          <button
+            id="direct-join-header-btn"
+            onClick={onOpenDirectJoinModal}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/40 rounded-md text-xs font-semibold transition-all shadow-xs"
+            title="Paste any Zoom or Google Meet Link / ID & customize attendees"
+          >
+            <Link2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Join Any Link</span>
+          </button>
         )}
 
         {/* Mass Attendee (100+ Users) Quick Controller Button */}

@@ -40,13 +40,14 @@ import VirtualBackgroundModal from './components/VirtualBackgroundModal';
 import CustomUserModal from './components/CustomUserModal';
 import MassJoinModal from './components/MassJoinModal';
 import MeetingScenarioPickerModal from './components/MeetingScenarioPickerModal';
+import DirectJoinModal from './components/DirectJoinModal';
 import MeetingJoinPreview from './components/MeetingJoinPreview';
 import MeetingEndedView from './components/MeetingEndedView';
 
 import { voiceEngine } from './utils/voiceSynthesis';
 import { getMemberAnswer, findMentionedParticipant } from './utils/memberAI';
 
-import { WifiOff, Camera, Zap, Users } from 'lucide-react';
+import { WifiOff, Camera, Zap, Users, Link2, Plus } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import html2canvas from 'html2canvas';
 
@@ -71,9 +72,9 @@ export default function App() {
   
   // Meeting Config
   const [topic, setTopic] = useState(currentScenario.topic);
-  const [meetingId] = useState(currentScenario.meetingId);
+  const [meetingId, setMeetingId] = useState(currentScenario.meetingId);
   const [meetCode, setMeetCode] = useState(currentScenario.meetCode || 'abc-defg-hij');
-  const [passcode] = useState(currentScenario.passcode);
+  const [passcode, setPasscode] = useState(currentScenario.passcode);
   const [hostName, setHostName] = useState(currentScenario.hostName);
   
   // Participants & User State (Defaults to 100+ realistic participants on any link click)
@@ -111,6 +112,7 @@ export default function App() {
   const [isVirtualBgModalOpen, setIsVirtualBgModalOpen] = useState(false);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [isMassJoinModalOpen, setIsMassJoinModalOpen] = useState(false);
+  const [isDirectJoinModalOpen, setIsDirectJoinModalOpen] = useState(false);
   const [isScenarioModalOpen, setIsScenarioModalOpen] = useState(false);
 
   // Live Auto-Streaming Join Mode
@@ -169,6 +171,30 @@ export default function App() {
     const updated = generateMassParticipants(count);
     setParticipants(updated);
     setJoinNotification(`Meeting expanded to ${count} attendees!`);
+    setTimeout(() => setJoinNotification(null), 3500);
+  };
+
+  const handleDirectJoinMeeting = (params: {
+    platform: MeetingPlatform;
+    meetingIdOrCode: string;
+    topic: string;
+    passcode?: string;
+    targetAttendeeCount: number;
+  }) => {
+    setPlatform(params.platform);
+    setTopic(params.topic);
+    if (params.platform === 'meet') {
+      setMeetCode(params.meetingIdOrCode);
+      zoomSounds.playMeetJoinChime();
+    } else {
+      setMeetingId(params.meetingIdOrCode);
+      if (params.passcode) setPasscode(params.passcode);
+      zoomSounds.playJoinChime();
+    }
+    const updated = generateMassParticipants(params.targetAttendeeCount || 100);
+    setParticipants(updated);
+    setMeetingState('in_meeting');
+    setJoinNotification(`Joined ${params.platform === 'meet' ? 'Google Meet' : 'Zoom'} with ${params.targetAttendeeCount || 100} attendees!`);
     setTimeout(() => setJoinNotification(null), 3500);
   };
 
@@ -772,6 +798,7 @@ export default function App() {
               onSwitchPlatform={handleSwitchPlatform}
               onOpenScenarios={() => setIsScenarioModalOpen(true)}
               onOpenMassJoinModal={() => setIsMassJoinModalOpen(true)}
+              onOpenDirectJoinModal={() => setIsDirectJoinModalOpen(true)}
               onToggleFullscreen={handleToggleFullscreen}
               isFullscreen={isFullscreen}
             />
@@ -794,6 +821,7 @@ export default function App() {
               onStopRecording={() => setIsRecording(false)}
               onOpenScenarios={() => setIsScenarioModalOpen(true)}
               onOpenMassJoinModal={() => setIsMassJoinModalOpen(true)}
+              onOpenDirectJoinModal={() => setIsDirectJoinModalOpen(true)}
               onToggleFullscreen={handleToggleFullscreen}
               isFullscreen={isFullscreen}
             />
@@ -864,26 +892,55 @@ export default function App() {
                 </div>
               ))}
 
-              {/* Quick Floating Actions: Mass Join & Screenshot */}
-              <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
+              {/* Quick Floating Actions: Direct Join, Quick +50/100 Booster, Mass Join & Screenshot */}
+              <div className="absolute top-3 right-3 z-30 flex items-center gap-1.5 flex-wrap justify-end">
+                <button
+                  id="quick-direct-join-btn"
+                  onClick={() => setIsDirectJoinModalOpen(true)}
+                  title="Direct Join any Zoom or Google Meet Link / Meeting ID"
+                  className="px-2.5 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 rounded-lg backdrop-blur-md border border-emerald-500/80 transition-all flex items-center gap-1.5 text-xs font-semibold shadow-lg cursor-pointer"
+                >
+                  <Link2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden md:inline">Join Any Link</span>
+                </button>
+
+                <div className="flex items-center bg-zinc-950/80 backdrop-blur-md border border-zinc-700/80 rounded-lg p-0.5 shadow-lg">
+                  <button
+                    onClick={() => handleAddBatchUsers(50)}
+                    title="Instantly add +50 attendees to this meeting"
+                    className="px-2 py-1 text-zinc-300 hover:text-white hover:bg-blue-600/30 rounded text-xs font-semibold flex items-center gap-0.5 transition-colors"
+                  >
+                    <Plus className="w-3 h-3 text-blue-400" />
+                    <span>50</span>
+                  </button>
+                  <button
+                    onClick={() => handleAddBatchUsers(100)}
+                    title="Instantly add +100 attendees to this meeting"
+                    className="px-2 py-1 text-zinc-300 hover:text-white hover:bg-blue-600/30 rounded text-xs font-semibold flex items-center gap-0.5 transition-colors border-l border-zinc-800"
+                  >
+                    <Plus className="w-3 h-3 text-blue-400" />
+                    <span>100</span>
+                  </button>
+                </div>
+
                 <button
                   id="quick-mass-join-btn"
                   onClick={() => setIsMassJoinModalOpen(true)}
-                  title="Mass Attendee Controller (100 to 1,000 Users)"
-                  className="p-2 bg-gradient-to-r from-blue-600/80 to-indigo-600/80 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg backdrop-blur-md border border-blue-500/80 transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer"
+                  title="Mass Attendee Controller (100 to 1,000+ Users)"
+                  className="px-2.5 py-1.5 bg-gradient-to-r from-blue-600/90 to-indigo-600/90 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg backdrop-blur-md border border-blue-400/80 transition-all flex items-center gap-1.5 text-xs font-bold shadow-lg cursor-pointer"
                 >
                   <Zap className="w-3.5 h-3.5 text-amber-300" />
-                  <span className="hidden sm:inline">👥 {participants.length} Users (Mass Join)</span>
+                  <span>👥 {participants.length} Users</span>
                 </button>
 
                 <button
                   id="quick-screenshot-btn"
                   onClick={handleTakeScreenshot}
                   title="Take pristine screenshot"
-                  className="p-2 bg-black/60 hover:bg-black/90 text-zinc-300 hover:text-white rounded-lg backdrop-blur-md border border-zinc-700/80 transition-all flex items-center gap-1.5 text-xs cursor-pointer"
+                  className="p-1.5 bg-black/60 hover:bg-black/90 text-zinc-300 hover:text-white rounded-lg backdrop-blur-md border border-zinc-700/80 transition-all flex items-center gap-1 text-xs cursor-pointer"
                 >
                   <Camera className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="hidden sm:inline font-medium">Capture Screen</span>
+                  <span className="hidden lg:inline font-medium">Capture</span>
                 </button>
               </div>
             </div>
@@ -1123,6 +1180,17 @@ export default function App() {
           }}
           onClose={() => setIsAddUserModalOpen(false)}
           onOpenMassJoin={() => setIsMassJoinModalOpen(true)}
+        />
+      )}
+
+      {/* Direct Link Join Modal */}
+      {isDirectJoinModalOpen && (
+        <DirectJoinModal
+          currentPlatform={platform}
+          currentTopic={topic}
+          currentParticipantCount={participants.length}
+          onDirectJoin={handleDirectJoinMeeting}
+          onClose={() => setIsDirectJoinModalOpen(false)}
         />
       )}
 
