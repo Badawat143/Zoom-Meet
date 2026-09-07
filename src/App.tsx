@@ -704,18 +704,32 @@ export default function App() {
           topic={topic}
           meetingId={meetingId}
           meetCode={meetCode}
-          initialName={userParticipant.name}
+          initialName={userParticipant.name.replace(/\s*\(You\)/i, '') || 'Alex Rivera'}
           initialPlatform={platform}
-          onJoinMeeting={(name, isMuted, isVideoOn, videoType, chosenPlatform) => {
+          initialUserCount={participants.length || 100}
+          onJoinMeeting={(name, isMuted, isVideoOn, videoType, chosenPlatform, customDetails) => {
             setPlatform(chosenPlatform);
+            if (customDetails?.topic) {
+              setTopic(customDetails.topic);
+            }
             if (chosenPlatform === 'meet') {
+              if (customDetails?.meetingIdOrCode) {
+                setMeetCode(customDetails.meetingIdOrCode);
+              }
               zoomSounds.playMeetJoinChime();
             } else {
+              if (customDetails?.meetingIdOrCode) {
+                setMeetingId(customDetails.meetingIdOrCode);
+              }
               zoomSounds.playJoinChime();
             }
-            setParticipants((prev) =>
-              prev.map((p) =>
-                p.id === 'me' ? { ...p, name: `${name} (You)`, isMuted, isVideoOn, videoType } : p
+
+            const count = customDetails?.initialAttendeeCount || participants.length || 100;
+            const updated = generateMassParticipants(count);
+            const displayName = name ? `${name} (You)` : 'Alex Rivera (You)';
+            setParticipants(
+              updated.map((p) =>
+                p.id === 'me' ? { ...p, name: displayName, isMuted, isVideoOn, videoType } : p
               )
             );
             setUserVideoType(videoType);
