@@ -21,6 +21,8 @@ interface DirectJoinModalProps {
     topic: string;
     passcode?: string;
     targetAttendeeCount: number;
+    streamJoin?: boolean;
+    streamSpeed?: 'normal' | 'fast' | 'slow';
   }) => void;
   onClose: () => void;
 }
@@ -40,6 +42,8 @@ export default function DirectJoinModal({
     currentParticipantCount >= 100 ? currentParticipantCount : 100
   );
   const [detectedType, setDetectedType] = useState<'meet' | 'zoom' | null>(null);
+  const [streamJoin, setStreamJoin] = useState(true);
+  const [streamSpeed, setStreamSpeed] = useState<'normal' | 'fast' | 'slow'>('normal');
 
   // Auto-detect platform and meeting ID/code when user pastes a URL
   const handleUrlChange = (value: string) => {
@@ -100,6 +104,8 @@ export default function DirectJoinModal({
       topic: topic.trim() || 'Global Meeting',
       passcode: passcode.trim(),
       targetAttendeeCount: memberCount || 100,
+      streamJoin,
+      streamSpeed,
     });
     onClose();
   };
@@ -267,6 +273,68 @@ export default function DirectJoinModal({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* 1-by-1 Live Stream Joining Toggle */}
+          <div className="p-3 bg-zinc-950/80 rounded-xl border border-zinc-800 flex flex-col gap-2">
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={streamJoin}
+                onChange={(e) => setStreamJoin(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-zinc-900 border-zinc-700"
+              />
+              <div className="flex-1 min-w-0">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  Stream in Attendees 1-by-1 (एक-एक करके लाइव जॉइन करें)
+                </span>
+                <p className="text-[11px] text-zinc-400 mt-0.5 leading-snug">
+                  मीटिंग में {memberCount} मेंबर्स एक साथ नहीं, बल्कि एक-एक कर रियल-टाइम रिंग टोन और स्क्रीन अलर्ट के साथ जुड़ेंगे।
+                </p>
+              </div>
+            </label>
+
+            {streamJoin && (
+              <div className="flex items-center gap-1.5 pl-6 pt-1 border-t border-zinc-800/80">
+                <span className="text-[10px] text-zinc-400 font-semibold">Speed:</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setStreamSpeed('slow')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                      streamSpeed === 'slow'
+                        ? 'bg-blue-600 text-white border-blue-500'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    1x Realistic
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStreamSpeed('normal')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                      streamSpeed === 'normal'
+                        ? 'bg-blue-600 text-white border-blue-500'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    2x Dynamic
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStreamSpeed('fast')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                      streamSpeed === 'fast'
+                        ? 'bg-blue-600 text-white border-blue-500'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    5x Rapid
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Quick Preset Scenarios */}

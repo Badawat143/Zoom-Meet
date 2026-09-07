@@ -43,6 +43,7 @@ import MeetingScenarioPickerModal from './components/MeetingScenarioPickerModal'
 import DirectJoinModal from './components/DirectJoinModal';
 import MeetingJoinPreview from './components/MeetingJoinPreview';
 import MeetingEndedView from './components/MeetingEndedView';
+import LiveStreamHUD from './components/LiveStreamHUD';
 
 import { voiceEngine } from './utils/voiceSynthesis';
 import { getMemberAnswer, findMentionedParticipant } from './utils/memberAI';
@@ -115,8 +116,13 @@ export default function App() {
   const [isDirectJoinModalOpen, setIsDirectJoinModalOpen] = useState(false);
   const [isScenarioModalOpen, setIsScenarioModalOpen] = useState(false);
 
-  // Live Auto-Streaming Join Mode
+  // Live 1-by-1 Streaming Join Engine State
   const [isStreamJoining, setIsStreamJoining] = useState(false);
+  const [streamTargetTotal, setStreamTargetTotal] = useState(100);
+  const [streamSpeed, setStreamSpeed] = useState<'normal' | 'fast' | 'slow'>('normal');
+  const [isStreamPaused, setIsStreamPaused] = useState(false);
+  const [lastJoinedName, setLastJoinedName] = useState<string | undefined>(undefined);
+  const streamQueueRef = useRef<Participant[]>([]);
 
   // Live Timer & Recording
   const [durationSeconds, setDurationSeconds] = useState(148);
@@ -159,6 +165,8 @@ export default function App() {
     setMessages(scenario.initialChat);
     setUnreadChatCount(0);
     setIsScreenSharing(false);
+    setIsStreamJoining(false);
+    streamQueueRef.current = [];
     if (platform === 'meet') {
       zoomSounds.playMeetJoinChime();
     } else {
@@ -166,10 +174,54 @@ export default function App() {
     }
   };
 
+  // Start Sequential 1-by-1 Live Stream Join
+  const startSequentialLiveJoin = (
+    targetTotal: number, 
+    speed: 'normal' | 'fast' | 'slow' = 'normal',
+    initialMembers?: Participant[]
+  ) => {
+    const fullTargetList = generateMassParticipants(targetTotal);
+    
+    // User + Host form the initial base room
+    const base = initialMembers || fullTargetList.slice(0, 2);
+    const remaining = fullTargetList.slice(base.length);
+
+    setParticipants(base);
+    streamQueueRef.current = remaining;
+    setStreamTargetTotal(targetTotal);
+    setStreamSpeed(speed);
+    setIsStreamPaused(false);
+    setIsStreamJoining(true);
+    setMeetingState('in_meeting');
+    
+    if (platform === 'meet') {
+      zoomSounds.playMeetJoinChime();
+    } else {
+      zoomSounds.playJoinChime();
+    }
+    
+    setJoinNotification(`🟢 Admitting attendees 1-by-1 (Target: ${targetTotal} members)`);
+    setTimeout(() => setJoinNotification(null), 3000);
+  };
+
+  // Instant complete stream
+  const handleInstantCompleteStream = () => {
+    if (streamQueueRef.current.length > 0) {
+      const remaining = [...streamQueueRef.current];
+      streamQueueRef.current = [];
+      setParticipants((prev) => [...prev, ...remaining]);
+    }
+    setIsStreamJoining(false);
+    setJoinNotification(`All ${streamTargetTotal} attendees joined!`);
+    setTimeout(() => setJoinNotification(null), 3000);
+  };
+
   // Mass Attendee Operations
   const handleSetTotalCount = (count: number) => {
     const updated = generateMassParticipants(count);
     setParticipants(updated);
+    setIsStreamJoining(false);
+    streamQueueRef.current = [];
     setJoinNotification(`Meeting expanded to ${count} attendees!`);
     setTimeout(() => setJoinNotification(null), 3500);
   };
@@ -180,30 +232,52 @@ export default function App() {
     topic: string;
     passcode?: string;
     targetAttendeeCount: number;
+    streamJoin?: boolean;
+    streamSpeed?: 'normal' | 'fast' | 'slow';
   }) => {
     setPlatform(params.platform);
     setTopic(params.topic);
     if (params.platform === 'meet') {
       setMeetCode(params.meetingIdOrCode);
-      zoomSounds.playMeetJoinChime();
     } else {
       setMeetingId(params.meetingIdOrCode);
       if (params.passcode) setPasscode(params.passcode);
-      zoomSounds.playJoinChime();
     }
-    const updated = generateMassParticipants(params.targetAttendeeCount || 100);
-    setParticipants(updated);
-    setMeetingState('in_meeting');
-    setJoinNotification(`Joined ${params.platform === 'meet' ? 'Google Meet' : 'Zoom'} with ${params.targetAttendeeCount || 100} attendees!`);
-    setTimeout(() => setJoinNotification(null), 3500);
+
+    const count = params.targetAttendeeCount || 100;
+    if (params.streamJoin !== false) {
+      startSequentialLiveJoin(count, params.streamSpeed || 'normal');
+    } else {
+      const updated = generateMassParticipants(count);
+      setParticipants(updated);
+      setMeetingState('in_meeting');
+      if (params.platform === 'meet') {
+        zoomSounds.playMeetJoinChime();
+      } else {
+        zoomSounds.playJoinChime();
+      }
+      setJoinNotification(`Joined ${params.platform === 'meet' ? 'Google Meet' : 'Zoom'} with ${count} attendees!`);
+      setTimeout(() => setJoinNotification(null), 3500);
+    }
   };
 
-  const handleAddBatchUsers = (batchCount: number) => {
-    const nextTotal = participants.length + batchCount;
-    const updated = generateMassParticipants(nextTotal);
-    setParticipants(updated);
-    setJoinNotification(`+${batchCount} attendees joined the meeting`);
-    setTimeout(() => setJoinNotification(null), 3000);
+  const handleAddBatchUsers = (batchCount: number, stream: boolean = true) => {
+    if (stream) {
+      const targetTotal = participants.length + batchCount;
+      const additionalList = generateMassParticipants(targetTotal).slice(participants.length);
+      streamQueueRef.current = [...streamQueueRef.current, ...additionalList];
+      setStreamTargetTotal(targetTotal);
+      setIsStreamJoining(true);
+      setIsStreamPaused(false);
+      setJoinNotification(`Admitting +${batchCount} attendees one-by-one...`);
+      setTimeout(() => setJoinNotification(null), 3000);
+    } else {
+      const nextTotal = participants.length + batchCount;
+      const updated = generateMassParticipants(nextTotal);
+      setParticipants(updated);
+      setJoinNotification(`+${batchCount} attendees joined the meeting`);
+      setTimeout(() => setJoinNotification(null), 3000);
+    }
   };
 
   const handleMassHandRaise = (count: number) => {
@@ -222,26 +296,69 @@ export default function App() {
     setTimeout(() => setJoinNotification(null), 3000);
   };
 
-  // Live Stream Joining Loop
+  // Live 1-by-1 Stream Joining Loop
   useEffect(() => {
-    if (!isStreamJoining || meetingState !== 'in_meeting') return;
+    if (!isStreamJoining || meetingState !== 'in_meeting' || isStreamPaused) return;
+
+    const getCadence = () => {
+      switch (streamSpeed) {
+        case 'fast': return 220;
+        case 'slow': return 1100;
+        case 'normal':
+        default: return 550;
+      }
+    };
+
     const interval = setInterval(() => {
-      setParticipants((prev) => {
-        if (prev.length >= 1000) {
-          setIsStreamJoining(false);
-          return prev;
-        }
-        const updated = generateMassParticipants(prev.length + 1);
-        const newest = updated[updated.length - 1];
-        setJoinNotification(`${newest.name} (${newest.role || 'Attendee'}) joined`);
-        setTimeout(() => setJoinNotification(null), 2000);
-        return updated;
-      });
-      zoomSounds.playJoinChime();
-    }, 1800);
+      if (streamQueueRef.current.length === 0) {
+        setIsStreamJoining(false);
+        setJoinNotification(`🎉 All ${streamTargetTotal} attendees have joined the meeting!`);
+        setTimeout(() => setJoinNotification(null), 4000);
+        return;
+      }
+
+      const nextPerson = streamQueueRef.current.shift();
+      if (!nextPerson) return;
+
+      setParticipants((prev) => [...prev, nextPerson]);
+      setLastJoinedName(nextPerson.name);
+
+      // Play authentic sound chime for each joiner
+      if (platform === 'meet') {
+        zoomSounds.playMeetJoinChime();
+      } else {
+        zoomSounds.playJoinChime();
+      }
+
+      setJoinNotification(`🔔 ${nextPerson.name} (${nextPerson.role || 'Attendee'}) joined`);
+      setTimeout(() => setJoinNotification(null), 1400);
+
+      // 1 out of 5 joiners drops a realistic greeting in chat
+      if (Math.random() < 0.22) {
+        const greetings = [
+          'Hi everyone! 👋',
+          'Good morning team!',
+          'Glad to be here.',
+          'Audio & video working crisp 👍',
+          'Joining in from desktop!',
+          'Hey all, present!',
+          'Ready for the agenda!',
+        ];
+        const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+        const autoMsg: ChatMessage = {
+          id: 'msg-' + Math.random().toString(36).substring(2, 9),
+          senderId: nextPerson.id,
+          senderName: nextPerson.name,
+          senderAvatar: nextPerson.avatarUrl,
+          text: randomGreeting,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setMessages((prev) => [...prev, autoMsg]);
+      }
+    }, getCadence());
 
     return () => clearInterval(interval);
-  }, [isStreamJoining, meetingState]);
+  }, [isStreamJoining, isStreamPaused, streamSpeed, meetingState, platform, streamTargetTotal]);
 
   // Timer Interval
   useEffect(() => {
@@ -716,24 +833,48 @@ export default function App() {
               if (customDetails?.meetingIdOrCode) {
                 setMeetCode(customDetails.meetingIdOrCode);
               }
-              zoomSounds.playMeetJoinChime();
             } else {
               if (customDetails?.meetingIdOrCode) {
                 setMeetingId(customDetails.meetingIdOrCode);
               }
-              zoomSounds.playJoinChime();
             }
 
             const count = customDetails?.initialAttendeeCount || participants.length || 100;
-            const updated = generateMassParticipants(count);
             const displayName = name ? `${name} (You)` : 'Alex Rivera (You)';
-            setParticipants(
-              updated.map((p) =>
-                p.id === 'me' ? { ...p, name: displayName, isMuted, isVideoOn, videoType } : p
-              )
-            );
             setUserVideoType(videoType);
-            setMeetingState('in_meeting');
+
+            if (customDetails?.streamJoin !== false) {
+              const fullList = generateMassParticipants(count);
+              const customUser = {
+                ...fullList[0],
+                id: 'me',
+                name: displayName,
+                isMuted,
+                isVideoOn,
+                videoType,
+              };
+              const initialHost = fullList[1];
+              startSequentialLiveJoin(
+                count, 
+                customDetails?.streamSpeed || 'normal', 
+                [customUser, initialHost]
+              );
+            } else {
+              const updated = generateMassParticipants(count);
+              setParticipants(
+                updated.map((p) =>
+                  p.id === 'me' ? { ...p, name: displayName, isMuted, isVideoOn, videoType } : p
+                )
+              );
+              setMeetingState('in_meeting');
+              if (chosenPlatform === 'meet') {
+                zoomSounds.playMeetJoinChime();
+              } else {
+                zoomSounds.playJoinChime();
+              }
+              setJoinNotification(`Joined with ${count} attendees!`);
+              setTimeout(() => setJoinNotification(null), 3000);
+            }
           }}
         />
       )}
@@ -786,8 +927,25 @@ export default function App() {
             onVoiceCallDetected={handleVoiceCallDetected}
           />
 
+          {/* Live 1-by-1 Sequential Joining Progress HUD */}
+          <LiveStreamHUD
+            currentCount={participants.length}
+            targetCount={streamTargetTotal}
+            isStreaming={isStreamJoining}
+            isPaused={isStreamPaused}
+            speed={streamSpeed}
+            lastJoinedName={lastJoinedName}
+            onInstantComplete={handleInstantCompleteStream}
+            onTogglePause={() => setIsStreamPaused(!isStreamPaused)}
+            onChangeSpeed={(newSpeed) => setStreamSpeed(newSpeed)}
+            onStop={() => {
+              setIsStreamJoining(false);
+              streamQueueRef.current = [];
+            }}
+          />
+
           {/* Join Notification Banner */}
-          {joinNotification && (
+          {!isStreamJoining && joinNotification && (
             <div className="fixed top-14 left-1/2 -translate-x-1/2 bg-blue-600/90 backdrop-blur-md text-white px-4 py-1.5 rounded-full shadow-2xl text-xs font-semibold flex items-center gap-2 z-50 animate-fade-in border border-blue-400/40">
               <Users className="w-3.5 h-3.5 text-white" />
               <span>{joinNotification}</span>
@@ -918,22 +1076,22 @@ export default function App() {
                   <span className="hidden md:inline">Join Any Link</span>
                 </button>
 
-                <div className="flex items-center bg-zinc-950/80 backdrop-blur-md border border-zinc-700/80 rounded-lg p-0.5 shadow-lg">
+                <div className="flex items-center bg-zinc-950/85 backdrop-blur-md border border-zinc-700/80 rounded-lg p-0.5 shadow-lg">
                   <button
-                    onClick={() => handleAddBatchUsers(50)}
-                    title="Instantly add +50 attendees to this meeting"
-                    className="px-2 py-1 text-zinc-300 hover:text-white hover:bg-blue-600/30 rounded text-xs font-semibold flex items-center gap-0.5 transition-colors"
+                    onClick={() => handleAddBatchUsers(50, true)}
+                    title="Stream +50 attendees into meeting one-by-one with live chimes"
+                    className="px-2 py-1 text-zinc-300 hover:text-white hover:bg-emerald-600/30 rounded text-xs font-semibold flex items-center gap-1 transition-colors"
                   >
-                    <Plus className="w-3 h-3 text-blue-400" />
-                    <span>50</span>
+                    <Plus className="w-3 h-3 text-emerald-400" />
+                    <span>+50 Live</span>
                   </button>
                   <button
-                    onClick={() => handleAddBatchUsers(100)}
-                    title="Instantly add +100 attendees to this meeting"
-                    className="px-2 py-1 text-zinc-300 hover:text-white hover:bg-blue-600/30 rounded text-xs font-semibold flex items-center gap-0.5 transition-colors border-l border-zinc-800"
+                    onClick={() => handleAddBatchUsers(100, true)}
+                    title="Stream +100 attendees into meeting one-by-one with live chimes"
+                    className="px-2 py-1 text-zinc-300 hover:text-white hover:bg-blue-600/30 rounded text-xs font-semibold flex items-center gap-1 transition-colors border-l border-zinc-800"
                   >
                     <Plus className="w-3 h-3 text-blue-400" />
-                    <span>100</span>
+                    <span>+100 Live</span>
                   </button>
                 </div>
 

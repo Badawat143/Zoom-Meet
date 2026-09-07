@@ -32,6 +32,8 @@ interface MeetingJoinPreviewProps {
       meetingIdOrCode?: string;
       topic?: string;
       initialAttendeeCount?: number;
+      streamJoin?: boolean;
+      streamSpeed?: 'normal' | 'fast' | 'slow';
     }
   ) => void;
 }
@@ -56,6 +58,10 @@ export default function MeetingJoinPreview({
   const [customTopic, setCustomTopic] = useState(initialTopic || 'Executive Strategy & Global Sync');
   const [memberCount, setMemberCount] = useState<number>(initialUserCount >= 100 ? initialUserCount : 100);
   const [detectedType, setDetectedType] = useState<'meet' | 'zoom' | null>(null);
+  
+  // 1-by-1 Live Stream Joining Setting
+  const [streamJoin, setStreamJoin] = useState(true);
+  const [streamSpeed, setStreamSpeed] = useState<'normal' | 'fast' | 'slow'>('normal');
 
   // Analyze link or ID when user types or pastes
   const handleInputChange = (raw: string) => {
@@ -116,6 +122,8 @@ export default function MeetingJoinPreview({
         meetingIdOrCode: cleanCodeOrId,
         topic: customTopic.trim() || initialTopic,
         initialAttendeeCount: memberCount || 100,
+        streamJoin,
+        streamSpeed,
       }
     );
   };
@@ -352,7 +360,71 @@ export default function MeetingJoinPreview({
             </div>
           </div>
 
-          {/* 5. Big Instant Join Button */}
+          {/* 5. Live 1-by-1 Joining Stream Toggle */}
+          <div className={`p-3 rounded-xl border flex flex-col gap-2 ${
+            isMeet ? 'bg-[#171717] border-[#3c4043]' : 'bg-zinc-950 border-zinc-800'
+          }`}>
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={streamJoin}
+                onChange={(e) => setStreamJoin(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-zinc-900 border-zinc-700"
+              />
+              <div className="flex-1 min-w-0">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  Live 1-by-1 Member Joining (एक-एक करके सभी मेंबर्स जॉइन हों)
+                </span>
+                <p className="text-[11px] text-zinc-400 mt-0.5 leading-snug">
+                  मीटिंग शुरू होने पर सभी {memberCount} प्रतिभागी रियल-टाइम घंटी (chime) और नोटिफिकेशन के साथ एक-एक कर प्रवेश करेंगे।
+                </p>
+              </div>
+            </label>
+
+            {streamJoin && (
+              <div className="flex items-center gap-1.5 pl-6 pt-1 border-t border-zinc-800/80">
+                <span className="text-[10px] text-zinc-400 font-semibold">Joining Speed:</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setStreamSpeed('slow')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                      streamSpeed === 'slow'
+                        ? 'bg-blue-600 text-white border-blue-500'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    1x Realistic
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStreamSpeed('normal')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                      streamSpeed === 'normal'
+                        ? 'bg-blue-600 text-white border-blue-500'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    2x Dynamic
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStreamSpeed('fast')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                      streamSpeed === 'fast'
+                        ? 'bg-blue-600 text-white border-blue-500'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    5x Rapid
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 6. Big Instant Join Button */}
           <button
             type="button"
             onClick={() => handleJoin()}
@@ -362,7 +434,7 @@ export default function MeetingJoinPreview({
                 : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/30'
             } text-white rounded-xl font-bold text-sm shadow-xl transition-all active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer`}
           >
-            <span>Join {isMeet ? 'Google Meet' : 'Zoom Workplace'} ({memberCount} Attendees)</span>
+            <span>Join {isMeet ? 'Google Meet' : 'Zoom Workplace'} ({streamJoin ? 'Live 1-by-1 Stream' : `${memberCount} Attendees`})</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
